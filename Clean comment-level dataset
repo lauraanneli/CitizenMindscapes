@@ -1,0 +1,98 @@
+### this script creates a new dataset for a comment-level analysis ###
+### ordered by thread and comment time ###
+
+setwd("/Users/laura/Documents/Citizen Mindscapes/Syömishäiriödata")
+
+#### combine datsets #####
+T1 <- read.table("1 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T2 <- read.table("2 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T3 <- read.table("3 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T4 <- read.table("4 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T5 <- read.table("5 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T6 <- read.table("6 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T7 <- read.table("7 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T8 <- read.table("8 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T9 <- read.table("9 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T10 <- read.table("10 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T11 <- read.table("11 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T12 <- read.table("12 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T13 <- read.table("13 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T14 <- read.table("14 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T15 <- read.table("15 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T16 <- read.table("16 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T17 <- read.table("17 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T18 <- read.table("18 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T19 <- read.table("19 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T20 <- read.table("20 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T21 <- read.table("21 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T22 <- read.table("22 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T23 <- read.table("23 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T24 <- read.table("24 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+T25 <- read.table("25 full data.csv", sep=",", fill = TRUE, header = TRUE, stringsAsFactors = FALSE)
+total <- rbind(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25)
+
+#### choose observations of the subsection "BED" ####
+BED <- total[grep("BED", total$text_subsections), ] #25303 obs.
+
+#### delete observations with missing values
+# without this, the rows do not match when creating the comment ID #
+
+BED <- na.omit(BED) 
+# 25283 obs. > 20 observations less than in the full BED-dataset
+# if there is a considerable amount of NAs, another way of treating them should be considered
+
+#### change encoding if needed ####
+Encoding(BED$text_anonnick) <- "UTF-8"
+Encoding(BED$tokens) <- "UTF-8"
+Encoding(BED$lemmas) <- "UTF-8"
+Encoding(BED$text_title) <- "UTF-8"
+
+#### number of threads - number of unique thread IDs #####
+BED_keskustelujenlkm <- unique(BED$text_tid) #460
+
+#### create a comment ID by combinig date, time and nickname > count unique comment IDs ####
+BED$text_timefrom <- as.character(BED$text_timefrom)
+BED$text_datefrom <- as.character(BED$text_datefrom)
+BED$kommenttiID <- paste(BED$text_timefrom, BED$text_datefrom, BED$text_anonnick, sep = "")
+BED_kommentit <- unique(BED$kommenttiID) # 2404 comments
+
+#### create a new datset by comments ####
+# combine row information of a column given a same comment ID
+bedC1 <- aggregate(lemmas ~ kommenttiID, data=BED, paste, sep=" ")
+bedC2 <- aggregate(tokens ~ kommenttiID, data=BED, paste, sep=" ")
+bedC3 <- aggregate(text_time ~ kommenttiID, data=BED, paste, sep=",")
+bedC4 <- aggregate(text_anonnick ~ kommenttiID, data=BED, paste, sep=",")
+bedC5 <- aggregate(text_cid ~ kommenttiID, data=BED, paste, sep=",")
+bedC6 <- aggregate(text_title ~ kommenttiID, data=BED, paste, sep=",")
+bedC7 <- aggregate(text_date ~ kommenttiID, data=BED, paste, sep=",")
+bedC8 <- aggregate(text_tid ~ kommenttiID, data=BED, paste, sep=",")
+
+# unlist
+bedC3$text_time = unlist(lapply(bedC3$text_time, function (x) strsplit(as.character(x), ",", fixed=TRUE)[[1]][1]))
+bedC4$text_anonnick = unlist(lapply(bedC4$text_anonnick, function (x) strsplit(as.character(x), ",", fixed=TRUE)[[1]][1]))
+bedC5$text_cid = unlist(lapply(bedC5$text_cid, function (x) strsplit(as.character(x), ",", fixed=TRUE)[[1]][1]))
+bedC6$text_title = unlist(lapply(bedC6$text_title, function (x) strsplit(as.character(x), ",", fixed=TRUE)[[1]][1]))
+bedC7$text_date = unlist(lapply(bedC7$text_date, function (x) strsplit(as.character(x), ",", fixed=TRUE)[[1]][1]))
+bedC8$text_tid = unlist(lapply(bedC8$text_tid, function (x) strsplit(as.character(x), ",", fixed=TRUE)[[1]][1]))
+
+# combine as data frame
+bedKommentit <- cbind(bedC2$kommenttiID, bedC6$text_title, bedC4$text_anonnick, bedC2$tokens, bedC1$lemmas, bedC5$text_cid, bedC3$text_time, bedC7$text_date, bedC8$text_tid)
+bedKommentit <- as.data.frame(bedKommentit)
+colnames(bedKommentit) <- c("kommenttiID", "keskustelu_otsikko", "kommentoija", "tokens", "lemmas", "kommentti_cid",  "kommenttiaika", "kommenttipvm", "keskustelu_id")
+
+#### create a dummy variable for thread-initiations #####
+bedKommentit$thread_initiation <- factor ( with ( bedKommentit, ifelse ( ( kommentti_cid == "unspecified" ), 1 , 0 ) ) )
+
+#### combine date and time ####
+bedKommentit$kommenttiaika <- unlist(bedKommentit$kommenttiaika)
+bedKommentit$kommenttipvm <- unlist(bedKommentit$kommenttipvm)
+class(bedKommentit$kommenttipvm)
+class(bedKommentit$kommenttiaika)
+bedKommentit$datetime <- paste (bedKommentit$kommenttipvm, bedKommentit$kommenttiaika, sep = " ")
+bedKommentit$datetime <- strptime(bedKommentit$datetime, "%d.%m.%Y %H:%M")
+class(bedKommentit$datetime)
+
+#### order by thread_id & time, reset rownames ####
+bedKommentit$keskustelu_id <- unlist(bedKommentit$keskustelu_id)
+bedKommentit <- bedKommentit[with(bedKommentit,order(keskustelu_id,datetime)),]
+rownames(bedKommentit) <- NULL

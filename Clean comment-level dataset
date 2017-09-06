@@ -57,7 +57,7 @@ BED$kommenttiID <- paste(BED$text_timefrom, BED$text_datefrom, BED$text_anonnick
 BED_kommentit <- unique(BED$kommenttiID) # 2404 comments
 
 #### create a new datset by comments ####
-# combine row information of a column given a same comment ID
+# combine row information of a column given the same comment ID
 bedC1 <- aggregate(lemmas ~ kommenttiID, data=BED, paste, sep=" ")
 bedC2 <- aggregate(tokens ~ kommenttiID, data=BED, paste, sep=" ")
 bedC3 <- aggregate(text_time ~ kommenttiID, data=BED, paste, sep=",")

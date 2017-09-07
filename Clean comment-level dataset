@@ -97,4 +97,5 @@ bedKommentit$keskustelu_id <- unlist(bedKommentit$keskustelu_id)
 bedKommentit <- bedKommentit[with(bedKommentit,order(keskustelu_id,datetime)),]
 rownames(bedKommentit) <- NULL
 
-save(bedKommentit, file = "Clean dataset for comments.RData")
+#### save clean dataset ####
+save(bedKommentit, file = "07092017bedKommentit.RData")

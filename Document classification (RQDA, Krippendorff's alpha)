@@ -1,0 +1,88 @@
+#### install and require packages ###
+
+install.packages("RSQLite")
+# install RGtk2 for Mac
+install.packages("RGtk2", dependencies = T, type = 'mac.binary.mavericks')
+# install RGtk2 for Windows
+install.packages("https://cran.r-project.org/bin/windows/contrib/3.3/RGtk2_2.20.31.zip", repos=NULL)
+install.packages("RQDA")
+install.packages("irr")
+
+library(RSQLite)
+library(RGtk2)
+library(RQDA)
+library(plyr)
+library(dplyr)
+library(irr)
+library(tm)
+
+#### set working directory and load cleaned comment-level dataset ####
+
+setwd("/Volumes/NO NAME/Citizen Mindscapes/")
+load("/Volumes/NO NAME/Citizen Mindscapes/Content analysis/07092017bedKommentit.RData")
+
+#### take a random sample and analyse the comments using RQDA!
+
+# comments per thread
+commentsPerThread <- as.data.frame(table(bedKommentit$keskustelu_id))
+
+# random sample of 100
+sample <- as.data.frame(sample(commentsPerThread$Var1, 100))
+row.names(sample) <- 1:nrow(sample)
+save(sample, file = "sample.RData")
+load("/Volumes/NO NAME/Citizen Mindscapes/Content analysis/sample.RData")
+
+# open RQDA and your project (you can also create a new project and new code categories!)
+RQDA()
+openProject("/Volumes/NO NAME/Citizen Mindscapes/Content analysis/CA Final/16.8.2017 CA.rqda", updateGUI = TRUE)
+
+# from the random sample of 100, read one thread at a time to RQDA by "keskustelu_id"
+# analyse its comments in the RQDA-GUI, then return to read another thread to RQDA, and repeat until you have obtained the amount of classified data you need
+CA1 <- bedKommentit[grep("4873271", bedKommentit$keskustelu_id), ]
+row.names(CA1) <- 1:nrow(CA1)
+CA2 <- as.list(CA1$tokens)
+names(CA2) <- CA1$kommenttiID
+CA2[1:2]
+write.FileList(CA2, alphabetical = FALSE, encoding = "UTF-8")
+
+#### calculate Krippendorff's alpha using RQDA -coding tables of three coders ####
+
+# each coder has their own project - open the projects one by one and export coding tables
+openProject("/Volumes/NO NAME/Citizen Mindscapes/Content analysis/CA Final/16.8.2017 CA Laura Round 2.rqda", updateGUI = TRUE)
+Coder1 <- getCodingTable()
+
+openProject("/Volumes/NO NAME/Citizen Mindscapes/Content analysis/CA Final/16.8.2017 CA Rosa.rqda", updateGUI = TRUE)
+Coder2 <- getCodingTable()
+
+openProject("/Volumes/NO NAME/Citizen Mindscapes/Content analysis/CA Final/16.8.2017 CA Leena.rqda", updateGUI = TRUE)
+Coder3 <- getCodingTable()
+
+# due to lack of time, coder 3 started where coder 2 left off - to obtain only one Krippendorff's alpha -number, I treat their codings as one. in this case, krippendorff's alpha can only be an approximation of the coding scheme's quality.  
+Coder2and3 <- rbind(Coder2, Coder3)
+
+# delete comments that are not given a label by all coders (coder 1 analysed approx. 200 comments more than coders 2 and 3 combined)
+# this operation does not skew results, because coding categories "Other" and "Unclear" ensure that even those comments that do not fit the coding scheme are labeled
+Coder1 <- subset(Coder1, filename %in% Coder2and3$filename)
+Coder2and3 <- subset(Coder2and3, filename %in% Coder1$filename)
+
+#### create a table that combines codings by coders 1, 2 and 3, and use it as an input to calculate Krippendorff's alpha ####
+
+# order tables alphabetically so that the rows match
+Coder1 <- Coder1[order(Coder1$filename),]
+Coder2and3 <- Coder2and3[order(Coder2and3$filename),]
+
+# the input file should only contain columns that represent the codings by two or more coders
+input <- cbind.data.frame(Coder1$filename, Coder1$cid, Coder2and3$cid)
+# make row names out of file names and clear the columns
+rownames(input) <- input[,1]
+input[,1] <- NULL
+save(input, file = "input.RData")
+# krippendorff's alpha
+kripp.alpha(as.matrix(t(input)))
+# does the alpha-number change if the classes for Reciprocal SSE are combined?
+input$'Coder1$cid'[input$'Coder1$cid' == 8] <- 14
+input$'Coder2and3$cid'[input$'Coder2and3$cid' == 8] <- 14
+kripp.alpha(as.matrix(t(input)))
+
+#### the results are good! ####
+#### In the next file, I proceed to supervised learning, using as training data the files classified by Coder 1 ####

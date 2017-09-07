@@ -1,0 +1,122 @@
+# require packages
+
+library(RSQLite)
+library(RGtk2)
+library(RQDA)
+library(plyr)
+library(dplyr)
+library(irr)
+library(tm)
+library(wordcloud)
+library(SnowballC)
+library(RTextTools)
+
+#### set working directory and load cleaned comment-level datset and the RQDA-file containing the categorization for each manually coded file for supervised learning ####
+
+setwd("/Volumes/NO NAME/Citizen Mindscapes/")
+load("/Volumes/NO NAME/Citizen Mindscapes/Content analysis/07092017bedKommentit.RData")
+
+RQDA()
+openProject("/Volumes/NO NAME/Citizen Mindscapes/Content analysis/CA Final/16.8.2017 CA Laura Round 2.rqda", updateGUI = TRUE)
+Coder1 <- getCodingTable()
+
+#### combine comments -dataset with codings -dataset ####
+
+  colnames(Coder1)[5] <- "kommenttiID"
+  bedKommentit <- subset(bedKommentit, kommenttiID %in% Coder1$kommenttiID)
+  
+  # preprocess tokens and lemmas before combining the comments -dataset with the codings -dataset
+  bedKommentit$tokens <- gsub(":)", " hymy ", bedKommentit$tokens)
+  bedKommentit$tokens <- gsub(": )", " hymy ", bedKommentit$tokens)
+  bedKommentit$tokens <- gsub(":\\(", " surunaama ", bedKommentit$tokens)
+  bedKommentit$tokens <- gsub("!", " huuto ", bedKommentit$tokens)
+  bedKommentit$tokens <- gsub("\\?", " kysymysmerkki ", bedKommentit$tokens)
+  bedKommentit$tokens <- gsub("c\\(", "", bedKommentit$tokens)
+  bedKommentit$tokens <- gsub("\\d+","---",bedKommentit$tokens)
+  bedKommentit$tokens <- gsub("---"," lukumäärä ",bedKommentit$tokens)
+  bedKommentit$tokens <-gsub("[[:punct:]]"," ",bedKommentit$tokens)
+  bedKommentit$tokens <-gsub("[[:digit:]]"," ",bedKommentit$tokens)
+  # after running this, replace "tokens" with lemmas!
+  
+  bedKommentit$datetime <- NULL # this variable causes an error so it is temporarily removed (can be recreated by combining date and time)
+  bedKommentit <- as.data.frame(lapply(bedKommentit, function(X) unname(unlist(X))))
+  bedKommentit <- merge(bedKommentit,Coder1,by="kommenttiID")
+  
+#### SVM, four categories: emotional sharing, feedback, sse cycle, other ####
+  
+  svm <- bedKommentit[ , c(1, 5, 14)] # choose only the columns nickname, lemmas, codename
+  rownames(svm) <- NULL
+  svm$lemmas <- gsub("  "," ",svm$lemmas) # strip extra whitespace
+  svm$catnum <- as.numeric(factor(svm$codename)) # transform codename into a numeric, to a new column
+  
+  # take only the categories of interest and group them under 4 broader classes: emotional sharing, feedback, sse cycle and other
+  svm<-subset(svm, subset = catnum == 14 | catnum == 17 | catnum == 4 | catnum == 5 | catnum == 2 | catnum == 6 | catnum == 12 | catnum == 3 | catnum == 13)
+  svm$catnum[svm$codename == "Thread-initiation: SSE"] <- 1
+  svm$catnum[svm$codename == "Thread-initiaton: SSE + Reciprocal Claim"] <- 1
+  svm$catnum[svm$codename == "Feedback: Reciprocal SSE Other-reference"] <- 1
+  svm$catnum[svm$codename == "Feedback: Reciprocal SSE Self-reference"] <- 1
+  svm$catnum[svm$codename == "Feedback: Cognitive/Affective"] <- 2
+  svm$catnum[svm$codename == "Feedback: SSE Feedback"] <- 2
+  svm$catnum[svm$codename == "Repost: SSE Cycle"] <- 3
+  svm$catnum[svm$codename == "Thread-initiation: Other"] <- 4
+  svm$catnum[svm$codename == "Feedback: Other"] <- 4
+  rownames(svm) <- NULL
+  
+  # save the dataset as a csv-file, and read it to R through RTextTools' read_data -command. This way you ensure the input data is in the right format
+  write.csv(svm, file = "svm.csv", row.names=FALSE, na="")
+  svm <- read_data("/Volumes/NO NAME/Citizen Mindscapes/svm.csv", type=c("csv"), index=NULL) 
+  
+  # create a matrix, a container, and train the model
+  doc_matrix <- create_matrix(svm$lemmas, language="finnish", removeSparseTerms=.998)
+  container <- create_container(doc_matrix,as.numeric(factor(svm$catnum)), trainSize=1:250, testSize=251:357, virgin=FALSE) #trai
+  SVM <- train_model(container,"SVM")
+  # classify data using trained model
+  SVM_CLASSIFY <- classify_model(container, SVM) 
+  # inspect analytics: precision, recall and fscore
+  analytics <- create_analytics(container, (SVM_CLASSIFY))
+  analytics
+  
+  # a dataframe showing how the model classified the documents of the non-virgin test set (30% of the 357 manually coded documents of interest: 107 documents)
+  # "catnum" is the class the human coders coded the document into, "pred" the algorithm's prediction of the right class, and "prob" the probability that the document belongs to the algorithm's chosen class
+  svmtest <- svm[251:357,]
+  svmtest$pred<-SVM_CLASSIFY$SVM_LABEL
+  svmtest$prob<-SVM_CLASSIFY$SVM_PROB
+  
+  topic_summary <- analytics@label_summary 
+  alg_summary <- analytics@algorithm_summary 
+  ens_summary <-analytics@ensemble_summary 
+  doc_summary <- analytics@document_summary
+  create_ensembleSummary(analytics@document_summary)
+  SVM <- cross_validate(container, 4, "SVM") 
+  alg_summary
+  
+# for a more in-depth explanation of the steps taken above, RTextTools and SVM, see: 
+# Collingwood, L. & al. (2013). RTextTools: A supervised learning package for text classification. R Journal.
+    
+#### visualize category differences with difference wordcloud ####
+  
+  # choose observations where coding = SSE or coding = fedback
+  # choosing other interesting categories to compare is also an option
+  SSE<-subset(bedKommentit, subset = cid == 8 | cid == 14 | cid == 1 | cid == 2)
+  feedback<-subset(bedKommentit, subset = cid == 9 | cid == 11)
+  
+  SSE <- SSE$lemmas
+  Feedback <- feedback$lemmas
+  SSE = paste(SSE, collapse=" ")
+  Feedback = paste(Feedback, collapse=" ")
+  df = data.frame(tokens = c(SSE, Feedback))
+  xkcd.corpus <- Corpus(DataframeSource(data.frame(df$tokens)))
+  xkcd.corpus = tm_map(xkcd.corpus, removeWords, stopwords('finnish')) 
+  
+  # create term-document matrix
+  tdm = TermDocumentMatrix(xkcd.corpus)
+  removeSparseTerms(tdm, 0.99)
+  
+  # convert as matrix
+  tdm = as.matrix(tdm)
+  
+  # add column names
+  colnames(tdm) = c("Emotional Sharing", "Feedback")
+  comparison.cloud(tdm, random.order=FALSE,
+                   colors = c("indianred3","lightsteelblue3"),
+                   title.size=1.5, max.words=400)

@@ -68,7 +68,7 @@ Coder1 <- getCodingTable()
   
   # create a matrix, a container, and train the model
   doc_matrix <- create_matrix(svm$lemmas, language="finnish", removeSparseTerms=.998)
-  container <- create_container(doc_matrix,as.numeric(factor(svm$catnum)), trainSize=1:250, testSize=251:357, virgin=FALSE) #trai
+  container <- create_container(doc_matrix,as.numeric(factor(svm$catnum)), trainSize=1:250, testSize=251:357, virgin=FALSE)
   SVM <- train_model(container,"SVM")
   # classify data using trained model
   SVM_CLASSIFY <- classify_model(container, SVM) 
